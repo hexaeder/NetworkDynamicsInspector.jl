@@ -1,5 +1,7 @@
 using NetworkDynamicsInspector
 using Test
+using GraphMakie
+using GLMakie
 
 @testset "NetworkDynamicsInspector.jl" begin
     register_vstatelens!(r"_ω") do sol, p, idx, state
@@ -44,4 +46,12 @@ using Test
     axes(values,2)
 
 
+end
+
+@testset "Test FavSelect" begin
+    fig = Figure()
+    favsel1 = fig[1,1] = FavSelect(fig, [:a, :b], Observable([:x,:y,:z]))
+    Label(fig[2,1], @lift(repr($(favsel1.selection))), tellwidth=false)
+    favsel2 = fig[3,1] = FavSelect(fig, [:a, :b, :c], Observable([:x,:y,:z]); allowmulti=false)
+    Label(fig[4,1], @lift(repr($(favsel2.selection))), tellwidth=false)
 end
