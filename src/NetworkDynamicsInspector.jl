@@ -1,5 +1,6 @@
 module NetworkDynamicsInspector
 
-# Write your package code here.
+include("interactive.jl")
+
 
 end

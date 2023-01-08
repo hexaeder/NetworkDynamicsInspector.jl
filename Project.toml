@@ -3,6 +3,19 @@ uuid = "e7c76309-868b-41ad-bcbc-f0aed9fad91a"
 authors = ["Hans Würfel <git@wuerfel.io> and contributors"]
 version = "0.1.0"
 
+[deps]
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
+GraphMakie = "1ecd5474-83a3-4783-bb4f-06765db800d2"
+Graphs = "86223c79-3864-5bf0-83f7-82e725a168b6"
+Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
+MetaGraphs = "626554b9-1ddb-594c-aa3c-2596fe9399a5"
+NetworkDynamics = "22e9dc34-2a0d-11e9-0de0-8588d035468b"
+NetworkLayout = "46757867-2c16-5918-afeb-47bfcb05e46a"
+OrdinaryDiffEq = "1dea7af3-3e70-54e6-95c3-0bf5283fa5ed"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
+
 [compat]
 julia = "1.6"
 
