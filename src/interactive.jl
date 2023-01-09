@@ -54,6 +54,7 @@ function inspect_solution(sol, network=sol.prob.f.f.graph, precord=PRecord(sol.p
         str = prod(string.(sort(collect(set))) .* ", ")[begin:end-2]
         nselectors[2].displayed_string[] = str *" "
     end
+    return fig
 
     #####
     ##### Graphplot

@@ -35,4 +35,20 @@ end
 
     fig = Figure()
     favsel1 = fig[1,1] = FavSelect(fig, [:a, :b], [:x,:y,:z])
+
+    # symbol selector
+    fig = Figure()
+    selection = Observable(Symbol[:a,:b])
+    tb = TBSelect(fig[1,1], selection; width=500)
+    @test selection === tb.selection
+    Label(fig[2,1], @lift(repr($(tb.selection))), tellwidth=false)
+
+    selection[] = [:foo, :bar]
+
+    # symbol selector for int
+    fig = Figure()
+    selection = Observable(Int[1,2,3])
+    tb = TBSelect(fig[1,1], selection; width=500)
+    @test selection === tb.selection
+    Label(fig[2,1], @lift(repr($(tb.selection))), tellwidth=false)
 end
