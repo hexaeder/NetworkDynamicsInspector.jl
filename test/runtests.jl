@@ -3,6 +3,7 @@ using Test
 using GraphMakie
 using GLMakie
 using NetworkDynamics
+using OrderedCollections
 
 @testset "NetworkDynamicsInspector.jl" begin
     register_vstatelens!(r"_ω") do sol, p, idx, state
@@ -48,6 +49,12 @@ end
     # symbol selector for int
     fig = Figure()
     selection = Observable(Int[1,2,3])
+    tb = TBSelect(fig[1,1], selection; width=500)
+    @test selection === tb.selection
+    Label(fig[2,1], @lift(repr($(tb.selection))), tellwidth=false)
+
+    fig = Figure()
+    selection = Observable(OrderedSet([1,2,3]))
     tb = TBSelect(fig[1,1], selection; width=500)
     @test selection === tb.selection
     Label(fig[2,1], @lift(repr($(tb.selection))), tellwidth=false)

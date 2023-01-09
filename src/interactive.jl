@@ -9,52 +9,49 @@ using Makie.ColorSchemes
 using NetworkDynamics
 using GraphMakie.NetworkLayout: spring
 using SciMLBase
+using OrderedCollections
 
 export inspect_solution, gparguments
 
-GP_FAVORITES = [:_ω, :_P, :_Q, :u_arg, :u_mag]
+GP_VFAVORITES = [:_ω, :_P, :_Q, :u_arg, :u_mag]
+GP_EFAVORITES = [:_P]
 
 function inspect_solution(sol, network=sol.prob.f.f.graph, precord=PRecord(sol.prob))
     fig = Figure(resolution = (1200, 1200))
-    ####
-    #### selector grid to control plot
-    ####
-    symgrid = fig[1,1] = GridLayout(tellwidth=false, tellheight=true)
-    nsym_selector = FavSelect(symgrid[1,1], GP_FAVORITES, listvstates(sol, 1:nv(network)))
-    nstatesym = nsym_selector.selection
-
-    reltoggle = symgrid[1,2] = Toggle(fig)
-    symgrid[1,3] = Label(fig, "relativ to u0")
-    rel_to_u0 = reltoggle.active
-
     # #####
     # ##### Selectors for sel_nodes and sel_edges
     # #####
-    selgrid = fig[2,1] = GridLayout(tellwidth=false, tellheight=true)
+    selgrid = fig[1,1] = GridLayout(tellwidth=false, tellheight=true)
 
-    sel_nodes = Observable(Set())
-    sel_edges = Observable(Set())
-    nselectors = selgrid[1,1:3] = [Label(fig, "Selected Nodes:"),
-                                       Textbox(fig; width=300, placeholder="insert comma separated indices"),
-                                       Button(fig, label="open node plot")]
-    on(nselectors[2].stored_string) do s
-        if occursin(r"^\s*$", s)
-            sel_nodes[] = Set{Int}()
-        else
-            try
-                parts = split(s, ',')
-                ints = parse.(Int, parts)
-                sel_nodes[] = Set(ints)
-            catch e
-                @warn "Parsing error of $s"
-            end
-        end
-    end
-    on(sel_nodes) do set
-        str = prod(string.(sort(collect(set))) .* ", ")[begin:end-2]
-        nselectors[2].displayed_string[] = str *" "
-    end
-    return fig
+    sel_nodes = Observable(OrderedSet{Int}())
+    sel_edges = Observable(OrderedSet{Int}())
+
+    selgrid[1,1] = Label(fig, "sel. nodes:")
+    selgrid[1,2] = TBSelect(fig, sel_nodes; width=250)
+    nplot_btn = selgrid[1,3] = Button(fig, label="node plot", halign=:left)
+
+    selgrid[1,4] = Label(fig, "sel. edges:")
+    selgrid[1,5] = TBSelect(fig, sel_edges; width=250)
+    eplot_btn = selgrid[1,6] = Button(fig, label="edge plot")
+
+    ####
+    #### selector grid to control plot
+    ####
+    nsymgrid = fig[2,1] = GridLayout(tellwidth=false, tellheight=true)
+    nsym_selector = FavSelect(nsymgrid[1,1], GP_VFAVORITES, listvstates(sol, 1:nv(network)); allowmulti=false)
+    nstatesym = nsym_selector.selection
+
+    nreltoggle = nsymgrid[1,2] = Toggle(fig)
+    nsymgrid[1,3] = Label(fig, "relativ to u0")
+    n_rel_to_u0 = nreltoggle.active
+
+    esymgrid = fig[3,1] = GridLayout(tellwidth=false, tellheight=true)
+    esym_selector = FavSelect(esymgrid[1,1], GP_EFAVORITES, listestates(sol, 1:ne(network)); allowmulti=false)
+    estatesym = nsym_selector.selection
+
+    ereltoggle = esymgrid[1,2] = Toggle(fig)
+    esymgrid[1,3] = Label(fig, "relativ to u0")
+    e_rel_to_u0 = ereltoggle.active
 
     #####
     ##### Graphplot
@@ -71,27 +68,17 @@ function inspect_solution(sol, network=sol.prob.f.f.graph, precord=PRecord(sol.p
     t = Observable(0.0)
     connect!(t, tslider.value)
 
-    # hacky way to add another slider
     tinterval_slider = bottom_sg.layout[3, 2] = IntervalSlider(fig; range=tslider.range, tellheight=true)
     bottom_sg.layout[3, 1] = Label(fig, @lift(@sprintf("%.4f s", $(tinterval_slider.interval)[1])); tellheight=true, halign=:right)
     bottom_sg.layout[3, 3] = Label(fig, @lift(@sprintf("%.4f s", $(tinterval_slider.interval)[2])); tellheight=true, halign=:left)
 
-    # on(tinterval_slider.interval) do interval
-    #     if t[] < interval[1]
-    #         set_close_to!(tslider, interval[1])
-    #     elseif t[] > interval[2]
-    #         set_close_to!(tslider, interval[2])
-    #     end
-    # end
 
-    # t = tslider.value
-
+    # nodeplot
     nstatelens = @lift vstatef(sol, precord, 1:nv(network), $nstatesym)
-
     ncolorscale = @lift 10^$(bottom_sg.sliders[1].value)
 
     ##### Color range stuff
-    maxrange = lift(nstatelens, rel_to_u0; ignore_equal_values=true) do lens, rel
+    maxrange = lift(nstatelens, n_rel_to_u0; ignore_equal_values=true) do lens, rel
         values = lens(sol.t)
         if rel
             for col in axes(values,2)
@@ -122,10 +109,11 @@ function inspect_solution(sol, network=sol.prob.f.f.graph, precord=PRecord(sol.p
     ncolorrange = lift(ncolorscale, maxrange; ignore_equal_values=true) do ncolorscale, maxrange
         ncolorscale .* maxrange
     end
+    return fig
 
     ## Graphplot
     gpax = Axis(gpgrid[1,1])
-    args = gparguments(sol, precord, network; t, ncolorscheme, nstatelens, ncolorrange, sel_nodes, rel_to_u0)
+    args = gparguments(sol, precord, network; t, ncolorscheme, nstatelens, ncolorrange, sel_nodes, n_rel_to_u0)
     graphplot!(gpax,network; args...)
     hidespines!(gpax)
     hidedecorations!(gpax)
@@ -188,17 +176,17 @@ end
 function nodeplot_window(sol, precord, tslider, sel_nodes; tlims=Observable((sol.t[begin], sol.t[end])))
     fig = Figure(resolution=(1000, 800))
 
-    symgrid = fig[1,1] = GridLayout(tellwidth=false, tellheight=true)
-    buttons = symgrid[1,1:5] = [Button(fig, label="_ω"),
+    esymgrid = fig[1,1] = GridLayout(tellwidth=false, tellheight=true)
+    buttons = esymgrid[1,1:5] = [Button(fig, label="_ω"),
                                 Button(fig, label="_u_arg"),
                                 Button(fig, label="_u_mag"),
                                 Button(fig, label="_P"),
                                 Button(fig, label="_rocof")]
-    symbox = symgrid[1,6] = Textbox(fig, width=150)
+    symbox = esymgrid[1,6] = Textbox(fig, width=150)
 
-    reltoggle = symgrid[1,7] = Toggle(fig)
+    reltoggle = nsymgrid[1,7] = Toggle(fig)
     symgrid[1,8] = Label(fig, "relativ to u0")
-    rel_to_u0 = reltoggle.active
+    n_rel_to_u0 = reltoggle.active
 
     for i in 1:5
         on(buttons[i].clicks) do n
@@ -252,7 +240,7 @@ function nodeplot_window(sol, precord, tslider, sel_nodes; tlims=Observable((sol
 
     plots = Dict{Int, Any}()
 
-    onany(syms, rel_to_u0) do syms, rel
+    onany(syms, n_rel_to_u0) do syms, rel
         @debug "Syms chagned to $syms "*(rel ? "(relative) " : "") * "clear all."
         empty!(ax)
         empty!(plots)
@@ -265,7 +253,7 @@ function nodeplot_window(sol, precord, tslider, sel_nodes; tlims=Observable((sol
     end
 
     legend = nothing
-    onany(sel_nodes, syms, rel_to_u0) do selected, syms, rel
+    onany(sel_nodes, syms, n_rel_to_u0) do selected, syms, rel
         added   = setdiff(selected, keys(plots))
         removed = setdiff(keys(plots), selected)
         for i in added
@@ -394,7 +382,7 @@ function gparguments(sol::ODESolution,
                      nstatelens,
                      ncolorrange,
                      ncolorscheme,
-                     rel_to_u0,
+                     n_rel_to_u0,
                      sel_nodes = Observable(Set{Int}()))
 
     t::Observable = t isa Observable ? t : Observable(t)
@@ -421,7 +409,7 @@ function gparguments(sol::ODESolution,
 
     statevec = Observable(Vector{Float64}(undef, NV))
 
-    onany(t, nstatelens, rel_to_u0) do t, lens, rel
+    onany(t, nstatelens, n_rel_to_u0) do t, lens, rel
         statevec[] .= @views lens(t)[1, :]
         if rel
             statevec[] .-= u0statevec[]

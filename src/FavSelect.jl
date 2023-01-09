@@ -3,7 +3,7 @@ using Makie
 Makie.@Block TBSelect begin
     @forwarded_layout
     textbox::Textbox
-    selection::Observable{<:Vector}
+    selection::Observable{<:Any}
     @attributes begin
         "Controls if multiple syms can be selected at the same time."
         allowmulti = true
@@ -25,7 +25,8 @@ Makie.@Block TBSelect begin
 end
 function Makie.initialize_block!(ts::TBSelect, selection=Observable(Symbol[]))
     setfield!(ts, :selection, selection)
-    ET = eltype(eltype(selection))
+    CT = eltype(selection)
+    ET = eltype(CT)
 
     ts.textbox = Textbox(ts.layout[1,1], width=ts.width)
 
@@ -33,12 +34,12 @@ function Makie.initialize_block!(ts::TBSelect, selection=Observable(Symbol[]))
     on(ts.textbox.stored_string) do str
         str = replace(str, r"[\s+]"=>s"") # remove whitespace
         if occursin(r"^\s*$", str) # empty
-            ts.selection[] = ET[]
+            ts.selection[] = CT()
         elseif !ts.allowmulti[]
-            ts.selection[] = [_convert_text(ET, str)]
+            ts.selection[] = CT([_convert_text(ET, str)])
         else
             parts = split(str, ','; keepempty=false)
-            ts.selection[] = _convert_text.(ET, parts)
+            ts.selection[] = CT(_convert_text.(ET, parts))
         end
     end
 
