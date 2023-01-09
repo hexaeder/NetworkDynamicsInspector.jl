@@ -1,6 +1,6 @@
 module NetworkDynamicsInspector
 
-include("widgets.jl")
+include("FavSelect.jl")
 include("interactive.jl")
 
 

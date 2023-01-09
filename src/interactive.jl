@@ -12,45 +12,24 @@ using SciMLBase
 
 export inspect_solution, gparguments
 
+GP_FAVORITES = [:_ω, :_P, :_Q, :u_arg, :u_mag]
+
 function inspect_solution(sol, network=sol.prob.f.f.graph, precord=PRecord(sol.prob))
     fig = Figure(resolution = (1200, 1200))
     ####
     #### selector grid to control plot
     ####
     symgrid = fig[1,1] = GridLayout(tellwidth=false, tellheight=true)
-    buttons = symgrid[1,1:5] = [Button(fig, label="_ω"),
-                                Button(fig, label="_u_arg"),
-                                Button(fig, label="_u_mag"),
-                                Button(fig, label="_P"),
-                                Button(fig, label="_rocof")]
-    symbox = symgrid[1,6] = Textbox(fig, width=150)
-    reltoggle = symgrid[1,7] = Toggle(fig)
-    symgrid[1,8] = Label(fig, "relativ to u0")
+    nsym_selector = FavSelect(symgrid[1,1], GP_FAVORITES, listvstates(sol, 1:nv(network)))
+    nstatesym = nsym_selector.selection
 
+    reltoggle = symgrid[1,2] = Toggle(fig)
+    symgrid[1,3] = Label(fig, "relativ to u0")
     rel_to_u0 = reltoggle.active
 
-    set_nsym! = function(sym)
-        symbox.displayed_string[] = sym
-        symbox.stored_string[] = sym
-    end
-
-    for i in 1:5
-        on(buttons[i].clicks) do n
-            sym = buttons[i].label[]
-            set_nsym!(sym)
-        end
-    end
-
-    nstatesym = Observable(:_ω)
-    on(symbox.stored_string) do s
-        nstatesym[] = Symbol(s)
-    end
-
-    set_nsym!("_ω")
-
-    #####
-    ##### Selectors for sel_nodes and sel_edges
-    #####
+    # #####
+    # ##### Selectors for sel_nodes and sel_edges
+    # #####
     selgrid = fig[2,1] = GridLayout(tellwidth=false, tellheight=true)
 
     sel_nodes = Observable(Set())

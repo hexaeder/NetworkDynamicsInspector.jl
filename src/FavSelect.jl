@@ -27,7 +27,8 @@ Makie.@Block FavSelect begin
 end
 
 function Makie.initialize_block!(fs::FavSelect, favs, syms)
-    setfield!(fs, :selection, Observable(Symbol[]))
+    syms = syms isa Observable ? syms : Observable(syms)
+    setfield!(fs, :selection, Observable([favs[1]]))
 
     fs.buttons = Button[]
     for (i, fav) in enumerate(favs)
@@ -101,7 +102,8 @@ function _update_selection(fs, sym)
 end
 
 function repr_selection(sel)
-    reduce(*, string.(sel) .* ", ")[begin:end-2]
+    str = reduce(*, string.(sel) .* ", ")
+    first(str, length(str)-2)
 end
 
 shift_pressed(x::Makie.Block) = shift_pressed(x.parent)

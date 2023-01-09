@@ -2,6 +2,7 @@ using NetworkDynamicsInspector
 using Test
 using GraphMakie
 using GLMakie
+using NetworkDynamics
 
 @testset "NetworkDynamicsInspector.jl" begin
     register_vstatelens!(r"_ω") do sol, p, idx, state
@@ -23,29 +24,6 @@ using GLMakie
 
     GLMakie.closeall()
     inspect_solution(sol)
-
-    u0 = zeros(20)
-    u0 .= @views vstatef(sol, p, 1:20, :u_r)(0)[1, :]
-
-    Plots.plot(sol.t, vstatef(sol, p, 1, :_ω)(sol.t))
-    Plots.plot!(sol.t, vstatef(sol, p, 3, :_ω)(sol.t))
-
-    Plots.plot(sol.t, vstatef(sol, p, 1:20, :_ω)(sol.t))
-
-    Plots.plot(sol.t, vstatef(sol, p, 1:20, "_ω")(sol.t))
-
-    vstatef(sol, p, 1:20, "_ω")(sol.t);
-
-    values = vstatef(sol, p, 1:20, "_ω")(sol.t)
-
-    values[1,:]
-
-    filter(!isnan, r)
-    size(values, 2)
-    eachindex
-    axes(values,2)
-
-
 end
 
 @testset "Test FavSelect" begin
@@ -54,4 +32,7 @@ end
     Label(fig[2,1], @lift(repr($(favsel1.selection))), tellwidth=false)
     favsel2 = fig[3,1] = FavSelect(fig, [:a, :b, :c], Observable([:x,:y,:z]); allowmulti=false)
     Label(fig[4,1], @lift(repr($(favsel2.selection))), tellwidth=false)
+
+    fig = Figure()
+    favsel1 = fig[1,1] = FavSelect(fig, [:a, :b], [:x,:y,:z])
 end
