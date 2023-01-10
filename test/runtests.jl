@@ -6,6 +6,7 @@ using NetworkDynamics
 using OrderedCollections
 
 @testset "NetworkDynamicsInspector.jl" begin
+    empty_statestuff!()
     register_vstatelens!(r"_ω") do sol, p, idx, state
         u_r_lens = NetworkDynamics.vstatelens(sol, p, idx, :u_r)
         u_i_lens = NetworkDynamics.vstatelens(sol, p, idx, :u_i)
@@ -20,11 +21,15 @@ using OrderedCollections
             return -(u_i*u_dot_r - u_r*u_dot_i)/(u_i^2 + u_r^2)
         end
     end
+    @register_vstate :_ω <= (:u_r, :u_i)
 
     sol = include("testpowergrid.jl");
 
     GLMakie.closeall()
     inspect_solution(sol)
+
+    vstatef(sol, p, 1:20, :_ω)(1)
+    vstatef(sol, p, 1:20, "_ω"; failmode=:warn)(1)
 end
 
 @testset "Test FavSelect" begin
@@ -59,3 +64,19 @@ end
     @test selection === tb.selection
     Label(fig[2,1], @lift(repr($(tb.selection))), tellwidth=false)
 end
+
+function create_closure1(data)
+    bufT = Type{eltype(data)}
+    @show bufT typeof(bufT) eltype(bufT)
+    (i) -> begin
+        buf = Vector{eltype(bufT)}(undef,1)
+        buf[1] = data[i]
+    end
+end
+closure = create_closure1(data)
+@code_warntype closure(1)
+
+
+typeof(Int64)
+Type{Int64}()
+# bufT = Int64

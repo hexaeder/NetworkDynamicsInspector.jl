@@ -47,78 +47,64 @@ function inspect_solution(sol, network=sol.prob.f.f.graph, precord=PRecord(sol.p
 
     esymgrid = fig[3,1] = GridLayout(tellwidth=false, tellheight=true)
     esym_selector = FavSelect(esymgrid[1,1], GP_EFAVORITES, listestates(sol, 1:ne(network)); allowmulti=false)
-    estatesym = nsym_selector.selection
+    estatesym = esym_selector.selection
 
     ereltoggle = esymgrid[1,2] = Toggle(fig)
     esymgrid[1,3] = Label(fig, "relativ to u0")
     e_rel_to_u0 = ereltoggle.active
 
+    ####
+    #### Statelenses
+    ####
+    nstatelens = Observable{Any}()
+    on(nstatesym; update=true) do sym
+        nstatelens[] = vstatef(sol, precord, 1:nv(network), sym; failmode=:warn)
+    end
+    estatelens = Observable{Any}()
+    on(estatesym; update=true) do sym
+        estatelens[] = estatef(sol, precord, 1:ne(network), sym; failmode=:warn)
+    end
+
     #####
     ##### Graphplot
     #####
-    gpgrid = fig[3,1] = GridLayout()
+    gpgrid = fig[4,1] = GridLayout()
 
-    ##### Bottom elements
-    bottom_sg = SliderGrid(fig[4,1],
-                           (label = "Node color scaling", range=Base.range(-10, 0, length=100), startvalue=0, format=x->@sprintf("%.2E", 10^x)),
-                           (label = "Time", range=Base.range(sol.t[begin], sol.t[end], length=1000), startvalue=sol.t[begin], format=x->@sprintf("%.4f s", x)))
 
-    # return bottom_sg
-    tslider = bottom_sg.sliders[2]
+    ####
+    #### Bottom elements
+    ####
+    bottom_sliders = fig[5,1] = GridLayout(tellwidth=false, tellhight=true)
+
+    ncolorrange, ncolorscheme = _colorrange_slider(bottom_sliders, 1, "node color scaling", nstatelens, n_rel_to_u0)
+    ecolorrange, ecolorscheme = _colorrange_slider(bottom_sliders, 2, "edge color scaling", estatelens, e_rel_to_u0)
+
+    Label(bottom_sliders[3,1], text="Time"; halign=:right)
+    tslider = Slider(bottom_sliders[3,2], range=Base.range(sol.t[begin], sol.t[end], length=1000))
+
     t = Observable(0.0)
     connect!(t, tslider.value)
+    Label(bottom_sliders[3,3], @lift(@sprintf("%.4f s", $t)))
 
-    tinterval_slider = bottom_sg.layout[3, 2] = IntervalSlider(fig; range=tslider.range, tellheight=true)
-    bottom_sg.layout[3, 1] = Label(fig, @lift(@sprintf("%.4f s", $(tinterval_slider.interval)[1])); tellheight=true, halign=:right)
-    bottom_sg.layout[3, 3] = Label(fig, @lift(@sprintf("%.4f s", $(tinterval_slider.interval)[2])); tellheight=true, halign=:left)
+    tinv_slider = IntervalSlider(bottom_sliders[4,2]; range=tslider.range, tellheight=true)
+    Label(bottom_sliders[4,1], @lift(@sprintf("%.4f s", $(tinv_slider.interval)[1])); tellheight=true, halign=:right)
+    Label(bottom_sliders[4,3], @lift(@sprintf("%.4f s", $(tinv_slider.interval)[2])); tellheight=true, halign=:left)
 
+    # palce the colorbars
+    # Colorbar(bottom_sliders[1,2]; colormap=ncolorscheme, colorrange=ncolorrange, vertical=false, label=@lift("node colors: "*string($nstatesym)), flipaxis=false)
+    # Colorbar(bottom_sliders[3,2]; colormap=ecolorscheme, colorrange=ecolorrange, vertical=false, label=@lift("edge colors: "*string($estatesym)), flipaxis=false)
 
-    # nodeplot
-    nstatelens = @lift vstatef(sol, precord, 1:nv(network), $nstatesym)
-    ncolorscale = @lift 10^$(bottom_sg.sliders[1].value)
-
-    ##### Color range stuff
-    maxrange = lift(nstatelens, n_rel_to_u0; ignore_equal_values=true) do lens, rel
-        values = lens(sol.t)
-        if rel
-            for col in axes(values,2)
-                values[:, col] .-= values[1, col]
-            end
-        end
-
-        (min, max) = extrema(Iterators.filter(!isnan, values))
-        if min > 0 && max >0
-            min = 0.0
-        elseif min<0 && max<0
-            max = 0.0
-        elseif min<0 && max>0
-            m = Base.max(-min, max)
-            min = -m
-            max =  m
-        end
-        (min, max)
-    end
-
-    ncolorscheme = @lift if ($maxrange)[1] < 0
-        # ColorScheme([colorant"blue", colorant"gray50", colorant"red"])
-        ColorSchemes.coolwarm
-    else
-        ColorSchemes.thermal
-    end
-
-    ncolorrange = lift(ncolorscale, maxrange; ignore_equal_values=true) do ncolorscale, maxrange
-        ncolorscale .* maxrange
-    end
-    return fig
+    Colorbar(gpgrid[1,1]; colormap=ncolorscheme, colorrange=ncolorrange, vertical=true, label=@lift("node colors "*string($nstatesym[1])), flipaxis=false)
+    Colorbar(gpgrid[1,3]; colormap=ecolorscheme, colorrange=ecolorrange, vertical=true, label=@lift("edge colors "*string($estatesym[1])), flipaxis=true)
 
     ## Graphplot
-    gpax = Axis(gpgrid[1,1])
-    args = gparguments(sol, precord, network; t, ncolorscheme, nstatelens, ncolorrange, sel_nodes, n_rel_to_u0)
-    graphplot!(gpax,network; args...)
-    hidespines!(gpax)
-    hidedecorations!(gpax)
+    # gpax = Axis(gpgrid[1,1])
+    # args = gparguments(sol, precord, network; t, ncolorscheme, nstatelens, ncolorrange, sel_nodes, n_rel_to_u0)
+    # graphplot!(gpax,network; args...)
+    # hidespines!(gpax)
+    # hidedecorations!(gpax)
 
-    Colorbar(gpgrid[2,1]; colormap=ncolorscheme, colorrange=ncolorrange, vertical=false, label=@lift("node colors: "*string($nstatesym)), flipaxis=false)
+    return fig
 
     HOVER_DEFAULT = "Hover node/edge to see info!"
     hover_text = Observable{String}(HOVER_DEFAULT)
@@ -171,6 +157,62 @@ function inspect_solution(sol, network=sol.prob.f.f.graph, precord=PRecord(sol.p
     end
 
     fig
+end
+
+function _colorrange_slider(grid, row, label, statelens, rel)
+    Label(grid[row, 1]; justification=:right, text=label)
+    sl = Slider(grid[row,2]; range=Base.range(-10, 0, length=100), startvalue=0)
+    Label(grid[row,3], @lift(@sprintf("%.2E", 10^$(sl.value))))
+
+    colorscale = @lift 10^$(sl.value)
+
+    ##### Color range stuff
+    maxrange = lift(statelens, rel; ignore_equal_values=true) do lens, rel
+        values = lens(lens.sol.t)
+        if rel
+            for col in axes(values,2)
+                values[:, col] .-= values[1, col]
+            end
+        end
+
+        try
+            (min, max) = extrema(skipmissing(values))
+        catch
+            (min, max) = (0.0,0.0)
+        end
+        if min > 0 && max >0
+            min = 0.0
+        elseif min<0 && max<0
+            max = 0.0
+        elseif min<0 && max>0
+            m = Base.max(-min, max)
+            min = -m
+            max =  m
+        end
+        (min, max)
+    end
+
+    colorscheme = Observable{ColorScheme}()
+    on(maxrange; update=true) do maxrange
+        if maxrange == (0.0,0.0)
+            colorscheme[] = ColorScheme([colorant"gray80", colorant"gray80", colorant"gray80"])
+        elseif (maxrange)[1] < 0
+            # ColorScheme([colorant"blue", colorant"gray50", colorant"red"])
+            colorscheme[] = ColorSchemes.coolwarm
+        else
+            colorscheme[] = ColorSchemes.thermal
+        end
+    end
+
+    colorrange = lift(colorscale, maxrange; ignore_equal_values=true) do colorscale, maxrange
+        if (maxrange) == (0.0, 0.0)
+            (0.0, 1.0)
+        else
+            colorscale .* maxrange
+        end
+    end
+
+    return colorrange, colorscheme
 end
 
 function nodeplot_window(sol, precord, tslider, sel_nodes; tlims=Observable((sol.t[begin], sol.t[end])))
@@ -322,30 +364,6 @@ function nodeplot_window(sol, precord, tslider, sel_nodes; tlims=Observable((sol
     register_interaction!(set_time_interaction, ax, :set_time)
 
     fig
-end
-
-function states_dropdown(fig, sol, sel_nodes)
-    DEFAULT = "(no option)"
-    states = Observable(String[DEFAULT])
-    rem_states = Observable(String[DEFAULT])
-    meas_states = string.(blockstates(sol, 1; print=false).meas_states)
-    on(sel_nodes; update=true) do idxs
-        if !isempty(idxs)
-            nt = _common_states(sol, idxs)
-            states[] = isempty(nt.states) ? [DEFAULT] : string.(nt.states)
-            rem_states[] = isempty(nt.rem_states) ? [DEFAULT] : string.(nt.rem_states)
-        else
-            states[] = [DEFAULT]
-            rem_states[] = [DEFAULT]
-        end
-    end
-    l1 = Label(fig, "Common:"; tellwidth=true)
-    m1 = Menu(fig; options=meas_states)
-    l2 = Label(fig, "States:"; tellwidth=true)
-    m2 = Menu(fig; options=states)
-    l3 = Label(fig, "Removed:"; tellwidth=true)
-    m3 = Menu(fig; options=rem_states)
-    return [l1, m1, l2, m2, l3, m3]
 end
 
 function register_keyboard_interaction!(fig, tslider)
