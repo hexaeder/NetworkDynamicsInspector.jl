@@ -23,12 +23,66 @@ using OrderedCollections
     end
     @register_vstate :_ω <= (:u_r, :u_i)
 
+    register_vstatelens!(r"_i_([ri])$") do sol, p, idx, state
+        m = match(r"_i_([ri])$", string(state))
+        part = m[1] == "i" ? imag : real
+
+        let part=part
+            (gd, t) -> begin
+                i = -total_current(get_dst_edges(gd, idx))
+                part(i)
+            end
+        end
+    end
+    @register_vstate :_i_r :_i_i
+    @register_vstatelens :_S => (:u_r + :u_i*im)*(:_i_r - :_i_i*im)
+    # @register_vstate :_S <= (:u_r, :u_i, :_i_r, :_i_i)
+    @register_vstatelens :_P => real(:_S)
+    @register_vstatelens :_Q => imag(:_S)
+    # @register_vstate :_P<=:_S :_Q<=:_S
+
+    register_estatelens!(r"^(srcv|dstv)_(.*)$") do sol, p, idx, state
+        m = match(r"^(srcv|dstv)_(.*)$", string(state))
+        vidx = if m[1] == "srcv"
+            NetworkDynamics._get_nd(sol).f.graph_structure.s_e[idx]
+        elseif m[1] == "dstv"
+            NetworkDynamics._get_nd(sol).f.graph_structure.d_e[idx]
+        end
+        vlens = NetworkDynamics.vstatelens(sol, p, vidx, Symbol(m[2]))
+        (gd, t) -> begin
+            vlens(gd, t)
+        end
+    end
+    @register_estate :srcv_u_i :srcv_u_r :dstv_u_i :dstv_u_r
+    @register_estatelens r"^_(src|dst)_S$" => (s"\1v_u_r" + s"\1v_u_i"*im)*(s"\1_i_r" - s"\1_i_i"*im)
+    @register_estatelens r"^_(src|dst)_P$" => real(s"_\1_S")
+    @register_estatelens r"^_(src|dst)_Q$" => imag(s"_\1_S")
+    # @register_estate :_src_S :_src_P :_src_Q :_dst_S :_dst_P :_dst_Q
+    @register_estatelens :_P => :_src_P
+    # @register_estate :_P
+
+    @register_vstatelens r"^(.*)_mag$" => sqrt(s"\1_r"^2 + s"\1_i"^2)
+    @register_vstatelens r"^(.*)_arg$" => atan(s"\1_i", s"\1_r")
+    @register_estatelens r"^(.*)_mag$" => sqrt(s"\1_r"^2 + s"\1_i"^2)
+    @register_estatelens r"^(.*)_arg$" => atan(s"\1_i", s"\1_r")
+
+    @register_vstatefilter r"^(.*)_r" <= (s"\1_arg", s"\1_mag")
+    @register_vstatefilter r"^(.*)_i" <= (s"\1_arg", s"\1_mag")
+    @register_estatefilter r"^(.*)_r" <= (s"\1_arg", s"\1_mag")
+    @register_estatefilter r"^(.*)_i" <= (s"\1_arg", s"\1_mag")
+
+
+    NetworkDynamics.VSTATES
+    NetworkDynamics.ESTATES
+
     sol = include("testpowergrid.jl");
 
     GLMakie.closeall()
     inspect_solution(sol)
 
-    vstatef(sol, p, 1:20, :_ω)(1)
+    vstatef(sol, p, 1:nv(g), :_ω2)(1) |> vec
+    estatef(sol, p, 1:ne(g), :_ω; failmode=:warn)(1) |> vec
+
     vstatef(sol, p, 1:20, "_ω"; failmode=:warn)(1)
 end
 
@@ -64,19 +118,3 @@ end
     @test selection === tb.selection
     Label(fig[2,1], @lift(repr($(tb.selection))), tellwidth=false)
 end
-
-function create_closure1(data)
-    bufT = Type{eltype(data)}
-    @show bufT typeof(bufT) eltype(bufT)
-    (i) -> begin
-        buf = Vector{eltype(bufT)}(undef,1)
-        buf[1] = data[i]
-    end
-end
-closure = create_closure1(data)
-@code_warntype closure(1)
-
-
-typeof(Int64)
-Type{Int64}()
-# bufT = Int64

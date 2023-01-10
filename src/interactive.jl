@@ -90,19 +90,76 @@ function inspect_solution(sol, network=sol.prob.f.f.graph, precord=PRecord(sol.p
     Label(bottom_sliders[4,1], @lift(@sprintf("%.4f s", $(tinv_slider.interval)[1])); tellheight=true, halign=:right)
     Label(bottom_sliders[4,3], @lift(@sprintf("%.4f s", $(tinv_slider.interval)[2])); tellheight=true, halign=:left)
 
-    # palce the colorbars
-    # Colorbar(bottom_sliders[1,2]; colormap=ncolorscheme, colorrange=ncolorrange, vertical=false, label=@lift("node colors: "*string($nstatesym)), flipaxis=false)
-    # Colorbar(bottom_sliders[3,2]; colormap=ecolorscheme, colorrange=ecolorrange, vertical=false, label=@lift("edge colors: "*string($estatesym)), flipaxis=false)
-
+    # place the colorbars
     Colorbar(gpgrid[1,1]; colormap=ncolorscheme, colorrange=ncolorrange, vertical=true, label=@lift("node colors "*string($nstatesym[1])), flipaxis=false)
     Colorbar(gpgrid[1,3]; colormap=ecolorscheme, colorrange=ecolorrange, vertical=true, label=@lift("edge colors "*string($estatesym[1])), flipaxis=true)
 
     ## Graphplot
-    # gpax = Axis(gpgrid[1,1])
-    # args = gparguments(sol, precord, network; t, ncolorscheme, nstatelens, ncolorrange, sel_nodes, n_rel_to_u0)
-    # graphplot!(gpax,network; args...)
-    # hidespines!(gpax)
-    # hidedecorations!(gpax)
+    gpax = Axis(gpgrid[1,2])
+
+    node_color = @lift begin
+        buf = $nstatelens($t)
+        if ismissing(buf[1])
+            buf = zeros(length(buf))
+        else
+            buf .-= $n_rel_to_u0 * buf[begin]
+        end
+        vec(buf)
+    end
+
+    edge_color = @lift begin
+        buf = $estatelens($t)
+        if ismissing(buf[1])
+            buf = zeros(length(buf))
+        else
+            buf .-= $e_rel_to_u0 * buf[begin]
+        end
+        vec(buf)
+    end
+
+    SMALL = 30
+    BIG = 70
+    node_size = Observable(fill(SMALL, nv(network)))
+    on(sel_nodes; update=true) do selected
+        fill!(node_size[], SMALL)
+        for sel in selected
+            node_size[][sel] = BIG
+        end
+        notify(node_size)
+    end
+
+    THIN = 7
+    THICC = 15
+    edge_width = Observable(fill(THIN, ne(network)))
+    on(sel_edges; update=true) do selected
+        fill!(edge_width[], THIN)
+        for sel in selected
+            edge_width[][sel] = THICC
+        end
+        notify(edge_width)
+    end
+
+    node_marker = let
+        markerset = [:circle, :rect, :utriangle, :cross, :diamond, :dtriangle, :pentagon, :xcross]
+        groups = sol.prob.f.f.unique_v_indices
+        markers = Vector{Symbol}(undef, nv(network))
+        for (i,g) in enumerate(groups)
+            markers[g] .= markerset[i]
+        end
+        markers
+    end
+
+    graphplot!(gpax,network;
+               layout=read_pos_or_spring,
+               node_marker,
+               node_size,
+               node_color,
+               node_attr=(;colorrange=ncolorrange, colormap=ncolorscheme),
+               edge_width,
+               edge_color,
+               edge_attr=(;colorrange=ecolorrange, colormap=ecolorscheme));
+    hidespines!(gpax)
+    hidedecorations!(gpax)
 
     return fig
 
