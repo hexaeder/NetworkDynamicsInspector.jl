@@ -97,24 +97,28 @@ function inspect_solution(sol, network=sol.prob.f.f.graph, precord=PRecord(sol.p
     ## Graphplot
     gpax = Axis(gpgrid[1,2])
 
+    vstate_vec   = @lift $nstatelens($t)
+    vstate_vec_0 = @lift $nstatelens(sol.t[begin])
     node_color = @lift begin
-        buf = $nstatelens($t)
+        buf = $vstate_vec
         if ismissing(buf[1])
             buf = zeros(length(buf))
         else
-            buf .-= $n_rel_to_u0 * buf[begin]
+            buf =  buf .- $n_rel_to_u0 * vstate_vec_0[]
         end
-        vec(buf)
+        convert(Vector{Float64}, vec(buf))
     end
 
+    estate_vec   = @lift $estatelens($t)
+    estate_vec_0 = @lift $estatelens(sol.t[begin])
     edge_color = @lift begin
-        buf = $estatelens($t)
+        buf = $estate_vec
         if ismissing(buf[1])
             buf = zeros(length(buf))
         else
-            buf .-= $e_rel_to_u0 * buf[begin]
+            buf =  buf .- $e_rel_to_u0 * estate_vec_0[]
         end
-        vec(buf)
+        convert(Vector{Float64}, vec(buf))
     end
 
     SMALL = 30
@@ -161,15 +165,12 @@ function inspect_solution(sol, network=sol.prob.f.f.graph, precord=PRecord(sol.p
     hidespines!(gpax)
     hidedecorations!(gpax)
 
-    return fig
-
-    HOVER_DEFAULT = "Hover node/edge to see info!"
-    hover_text = Observable{String}(HOVER_DEFAULT)
-    gpgrid[1, 1] = Label(fig, hover_text, tellwidth=false, tellheight=false, justification=:left, halign=:left, valign=:top, font="JuliaMono")
-
     # delete other interactions on scene
     deregister_interaction!(gpax, :rectanglezoom)
 
+    ####
+    #### Click interaction to select and deselct nodes
+    ####
     edgeclick = EdgeClickHandler() do idx, event, axis
         sel_edges[] = idx ∈ sel_edges[] ? delete!(sel_edges[], idx) : push!(sel_edges[], idx)
     end
@@ -180,23 +181,36 @@ function inspect_solution(sol, network=sol.prob.f.f.graph, precord=PRecord(sol.p
     end
     register_interaction!(gpax, :nclick, nodeclick)
 
+    ####
+    #### Hover interaction to show info
+    ####
+    HOVER_DEFAULT = "Hover node/edge to see info!"
+    hover_text = Observable{String}(HOVER_DEFAULT)
+    gpgrid[1, 2] = Label(fig, hover_text, tellwidth=false, tellheight=false, justification=:left, halign=:left, valign=:top, font="JuliaMono")
+
     nodehover = NodeHoverHandler() do state, idx, event, axis
-        if state
-            string = nhoverstring(sol, precord, t[], idx)
+        hover_text[] = if state
+            p = NetworkDynamics.p_v_idx(precord(t[]), idx)
+            state = vstate_vec[][idx]
+            d = OrderedDict(first(nstatesym[]) => state,
+                     "p" => p)
+            "Node $idx\n"*treestyle_string(d)
         else
-            string = HOVER_DEFAULT
+            HOVER_DEFAULT
         end
-        hover_text[] = string
     end
     register_interaction!(gpax, :nhover, nodehover)
 
     edgehover = EdgeHoverHandler() do state, idx, event, axis
-        if state
-            string = """Edge $idx """
+        hover_text[] = if state
+            p = NetworkDynamics.p_e_idx(precord(t[]), idx)
+            state = estate_vec[][idx]
+            d = OrderedDict(first(nstatesym[]) => state,
+                     "p" => p)
+            "Edge $idx\n"*treestyle_string(d)
         else
-            string = HOVER_DEFAULT
+            HOVER_DEFAULT
         end
-        hover_text[] = string
     end
     register_interaction!(gpax, :ehover, edgehover)
 
@@ -204,6 +218,7 @@ function inspect_solution(sol, network=sol.prob.f.f.graph, precord=PRecord(sol.p
     ##### Keyboard interaction for time
     #####
     register_keyboard_interaction!(fig, tslider)
+    return fig
 
     #####
     ##### Open node plots in new windows
@@ -228,7 +243,7 @@ function _colorrange_slider(grid, row, label, statelens, rel)
         values = lens(lens.sol.t)
         if rel
             for col in axes(values,2)
-                values[:, col] .-= values[1, col]
+                values[:, 1, col] .-= values[1, 1, col]
             end
         end
 
@@ -272,68 +287,27 @@ function _colorrange_slider(grid, row, label, statelens, rel)
     return colorrange, colorscheme
 end
 
-function nodeplot_window(sol, precord, tslider, sel_nodes; tlims=Observable((sol.t[begin], sol.t[end])))
+function subplot_window(type, sol, precord, tslider, tlims, selected)
     fig = Figure(resolution=(1000, 800))
 
-    esymgrid = fig[1,1] = GridLayout(tellwidth=false, tellheight=true)
-    buttons = esymgrid[1,1:5] = [Button(fig, label="_ω"),
-                                Button(fig, label="_u_arg"),
-                                Button(fig, label="_u_mag"),
-                                Button(fig, label="_P"),
-                                Button(fig, label="_rocof")]
-    symbox = esymgrid[1,6] = Textbox(fig, width=150)
+    if type === :node
+        symgrid = fig[2,1] = GridLayout(tellwidth=false, tellheight=true)
+        sym_selector = FavSelect(symgrid[1,1], GP_VFAVORITES, listvstates(sol, 1:nv(network)); allowmulti=false)
+        nstatesym = sym_selector.selection
 
-    reltoggle = nsymgrid[1,7] = Toggle(fig)
-    symgrid[1,8] = Label(fig, "relativ to u0")
-    n_rel_to_u0 = reltoggle.active
+        nreltoggle = symgrid[1,2] = Toggle(fig)
+        symgrid[1,3] = Label(fig, "relativ to u0")
+        n_rel_to_u0 = nreltoggle.active
+    elseif type === :edge
+        esymgrid = fig[3,1] = GridLayout(tellwidth=false, tellheight=true)
+        esym_selector = FavSelect(esymgrid[1,1], GP_EFAVORITES, listestates(sol, 1:ne(network)); allowmulti=false)
+        estatesym = esym_selector.selection
 
-    for i in 1:5
-        on(buttons[i].clicks) do n
-            lab = buttons[i].label[]
-            new = if shift_pressed(fig)
-                current = symbox.stored_string[]
-                current * ", " * lab
-            else
-                lab
-            end
-            symbox.displayed_string[] = new
-            symbox.stored_string[] = new
-        end
+        ereltoggle = esymgrid[1,2] = Toggle(fig)
+        esymgrid[1,3] = Label(fig, "relativ to u0")
+        e_rel_to_u0 = ereltoggle.active
     end
 
-    syms = Observable([:_ω])
-    on(symbox.stored_string) do s
-        if occursin(r"^\s*$", s)
-            syms[] = Symbol[]
-        else
-            try
-                parts = split(s, ',')
-                parts = replace.(parts, r"\s"=>s"")
-                syms[] = Symbol.(parts)
-            catch e
-                @warn "Parsing error of $s"
-            end
-        end
-    end
-
-    ## add menus
-    menugrid = fig[2,1] = GridLayout(tellwidth=false, tellheight=true)
-    menus = menugrid[1,1:6] = states_dropdown(fig, sol, sel_nodes)
-    for menu in filter(m -> m isa Menu, menus)
-        on(menu.selection) do sel
-            @debug "Menu Selection" sel
-            if sel isa String
-                new = if shift_pressed(fig)
-                    current = symbox.stored_string[]
-                    current * ", " * sel
-                else
-                    sel
-                end
-                symbox.displayed_string[] = new
-                symbox.stored_string[] = new
-            end
-        end
-    end
 
     ax = Axis(fig[3, 1])
 
@@ -528,19 +502,4 @@ function read_pos_or_spring(g::MetaGraph)
     else
         return pos
     end
-end
-
-function nhoverstring(sol, precord, t, idx)
-    return "not implemented"
-    wrp = _getwrapper(sol, idx)
-    np = precord(t)[1][idx]
-
-    pnames = string.(wrp.params)
-    pmaxlen = mapreduce(length, max, pnames)
-    pnames = rpad.(pnames, pmaxlen)
-
-    pstring = mapreduce(*, zip(pnames, np, treesyms(length(wrp.params)))) do (name, value, ts)
-        ts * " " * string(name) * " = " * repr(value)*"\n"
-    end
-    "Node $idx : $(wrp.name)\n"*pstring[1:end-1]
 end
