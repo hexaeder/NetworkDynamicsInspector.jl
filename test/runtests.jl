@@ -23,7 +23,7 @@ using OrderedCollections
     end
     @register_vstate :_ω => (:u_r, :u_i)
 
-    register_vstatelens!(r"_i_([ri])$") do sol, p, idx, state
+    register_vstatelens!(r"^_i_([ri])$") do sol, p, idx, state
         m = match(r"_i_([ri])$", string(state))
         part = m[1] == "i" ? imag : real
 
@@ -78,8 +78,15 @@ using OrderedCollections
     GLMakie.closeall()
     inspect_solution(sol)
 
+    vstatef(sol, p, 1:5, OrderedSet([:u_r, :u_i]))
+
+    vstatef(sol, p, Int[], Symbol[])(1)
 
     convert(Vector{Float64}, vec(a))
+
+    data = rand(100, 2, 3)
+    axes(data)
+    axes
 end
 
 @testset "Test FavSelect" begin
@@ -113,6 +120,14 @@ end
     tb = TBSelect(fig[1,1], selection; width=500)
     @test selection === tb.selection
     Label(fig[2,1], @lift(repr($(tb.selection))), tellwidth=false)
+
+    fig = Figure()
+    options = Observable([:x,:y,:z])
+    favsel1 = fig[1,1] = FavSelect(fig, Symbol[:a, :b], options)
+
+    options = Observable(Symbol[])
+    favsel1 = fig[1,1] = FavSelect(fig, Symbol[:a, :b], options)
+    options[] = [:x,:y,:z]
 end
 
 @testset "treesym style" begin

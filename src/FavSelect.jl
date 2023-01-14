@@ -100,7 +100,8 @@ function Makie.initialize_block!(fs::FavSelect, favs, syms)
         btn = Button(fs.layout[1,i], label=string(fav))
         push!(fs.buttons, btn)
     end
-    fs.menu = Menu(fs.layout[1,length(favs)+1], options=syms)
+    options = @lift isempty($syms) ? [:none] : $syms
+    fs.menu = Menu(fs.layout[1,length(favs)+1]; options)
 
     fs.textbox = TBSelect(fs.layout[1,length(favs)+2], fs.selection; width=150, allowmulti=fs.allowmulti)
 

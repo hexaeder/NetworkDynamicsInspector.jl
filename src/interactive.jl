@@ -218,13 +218,25 @@ function inspect_solution(sol, network=sol.prob.f.f.graph, precord=PRecord(sol.p
     ##### Keyboard interaction for time
     #####
     register_keyboard_interaction!(fig, tslider)
-    return fig
 
     #####
     ##### Open node plots in new windows
     #####
-    on(nselectors[3].clicks) do n
-        f = nodeplot_window(sol, precord, tslider, sel_nodes; tlims=tinterval_slider.interval)
+
+    on(nplot_btn.clicks) do n
+        f = subplot_window(:node, sol, precord;
+                           t=t,
+                           tlims=tinv_slider.interval,
+                           tslider=tslider,
+                           selected=sel_nodes)
+        sc = display(GLMakie.Screen(), f)
+    end
+    on(eplot_btn.clicks) do n
+        f = subplot_window(:edge, sol, precord;
+                           t=t,
+                           tlims=tinv_slider.interval,
+                           tslider=tslider,
+                           selected=sel_edges)
         sc = display(GLMakie.Screen(), f)
     end
 
@@ -287,114 +299,92 @@ function _colorrange_slider(grid, row, label, statelens, rel)
     return colorrange, colorscheme
 end
 
-function subplot_window(type, sol, precord, tslider, tlims, selected)
+function subplot_window(type, sol, precord; t, tlims, tslider, selected)
     fig = Figure(resolution=(1000, 800))
+    symgrid = fig[1,1] = GridLayout(tellwidth=false, tellheight=true)
 
-    if type === :node
-        symgrid = fig[2,1] = GridLayout(tellwidth=false, tellheight=true)
-        sym_selector = FavSelect(symgrid[1,1], GP_VFAVORITES, listvstates(sol, 1:nv(network)); allowmulti=false)
-        nstatesym = sym_selector.selection
-
-        nreltoggle = symgrid[1,2] = Toggle(fig)
-        symgrid[1,3] = Label(fig, "relativ to u0")
-        n_rel_to_u0 = nreltoggle.active
+    sym_selector = if type === :node
+        FavSelect(symgrid[1,1], GP_VFAVORITES, @lift(listvstates(sol, $selected)); allowmulti=true)
     elseif type === :edge
-        esymgrid = fig[3,1] = GridLayout(tellwidth=false, tellheight=true)
-        esym_selector = FavSelect(esymgrid[1,1], GP_EFAVORITES, listestates(sol, 1:ne(network)); allowmulti=false)
-        estatesym = esym_selector.selection
-
-        ereltoggle = esymgrid[1,2] = Toggle(fig)
-        esymgrid[1,3] = Label(fig, "relativ to u0")
-        e_rel_to_u0 = ereltoggle.active
+        FavSelect(symgrid[1,1], GP_EFAVORITES, @lift(listestates(sol, $selected)); allowmulti=true)
     end
+    statesyms = sym_selector.selection
 
+    reltoggle = symgrid[1,2] = Toggle(fig)
+    symgrid[1,3] = Label(fig, "relativ to u0")
+    rel_to_u0 = reltoggle.active
 
-    ax = Axis(fig[3, 1])
-
-    plots = Dict{Int, Any}()
-
-    onany(syms, n_rel_to_u0) do syms, rel
-        @debug "Syms chagned to $syms "*(rel ? "(relative) " : "") * "clear all."
-        empty!(ax)
-        empty!(plots)
-        Makie.vlines!(ax, tslider.value; color=:black)
-    end
-    notify(syms)
-
+    ax = Axis(fig[2, 1])
     on(tlims, update=true) do lims
         xlims!(ax, lims)
     end
 
-    legend = nothing
-    onany(sel_nodes, syms, n_rel_to_u0) do selected, syms, rel
-        added   = setdiff(selected, keys(plots))
-        removed = setdiff(keys(plots), selected)
-        for i in added
-            plist = []
-            for (isym, s) in enumerate(syms)
-                try
-                    ts = timeseries(sol, precord, i, s)
-                    if rel
-                        ts = TimeSeries(ts.t, ts.x .- ts.x[begin], ts.name)
-                    end
-                    p = lines!(ax, ts;
-                               label=string(s)*(rel ? " (rel)" : "")* " @ "*string(i),
-                               linewidth=3,
-                               color=Cycled(i),
-                               linestyle=ax.palette.linestyle[][isym])
-                    push!(plist, p)
-                    @debug "Added plot $s "*(rel ? " (rel)" : "")*" for node $i"
-                catch e
-                    @debug "Could not plot $s "*(rel ? " (rel)" : "")*" for node $i" e
-                    # variable not found
-                end
-            end
-            plots[i] = plist
+    statelens = Observable{Any}()
+    if type === :node
+        onany(statesyms, selected) do syms, idxs
+            # @info "update node statelens"
+            statelens[] = vstatef(sol, precord, idxs, syms; failmode=:warn)
         end
-        for i in removed
-            plist = plots[i]
-            delete!(plots, i)
-            for p in plist
-                delete!(ax, p)
-            end
+    elseif type === :edge
+        onany(statesyms, selected) do syms, idxs
+            # @info "update edge statelens"
+            statelens[] = estatef(sol, precord, idxs, syms; failmode=:warn)
         end
-        #= TODO: Legend broken
-        if !(isempty(added) && isempty(removed))
-            if !isnothing(legend)
-                # legend.width[] = 0
-                # legend.height[] = 0
-                # legend.tellwidth[]=false
-                # delete!(legend)
-            end
-            # isnothing(legend) || delete!(legend)
-            if !isempty(plots)
-                # legend = Legend(fig[2,2], ax, ":"*string(syms)*" at nodes:"; bgcolor=:white)
-            end
-            # display(GLMakie.Screen(fig.scene), fig)
-        end
-        =#
     end
 
-    # initialize box
-    symbox.displayed_string[] = string(syms[][1])
-    symbox.stored_string[] = string(syms[][1])
+    data = Observable{Array{Union{Missing, Float32}}}()
+    onany(statelens, rel_to_u0) do lens, rel
+        # @info "update data"
+        newdat = lens(sol.t)
+        if rel
+            for idxidx in axes(newdat , 3), symidx in axes(newdat , 2)
+                newdat[:, symidx, idxidx] .-= newdat[begin, symidx, idxidx]
+            end
+        end
+        data[] = newdat
+    end
+
+    legendref = Ref{Legend}()
+    on(data) do data
+        if isassigned(legendref)
+            delete!(legendref[])
+        end
+        # @info "replot"
+        empty!(ax)
+        vlines!(ax, t; color=:black)
+        for idxidx in axes(data, 3)
+            for symidx in axes(data, 2)
+                series = @views data[:, symidx, idxidx]
+                ismissing(series[begin]) && continue
+                lines!(ax, sol.t, series;
+                       label=string(statesyms[][symidx])*(rel_to_u0[] ? " (rel)" : "")* " @ "*string(selected[][idxidx]),
+                       color=Cycled(idxidx),
+                       linestyle=ax.palette.linestyle[][symidx])
+            end
+        end
+        # if !isempty(data)
+        #    legendref[] = axislegend(ax)
+        # end
+    end
+
+    ####
+    #### Click interaction to set time
+    ####
+    set_time_interaction = (event::MouseEvent, axis) -> begin
+        if event.type === MouseEventTypes.leftclick
+            pos = mouseposition(axis.scene)[1]
+            set_close_to!(tslider, pos)
+            return Consume(true)
+        end
+        return Consume(false)
+    end
+    register_interaction!(set_time_interaction, ax, :set_time)
 
     # arrows to move time
     register_keyboard_interaction!(fig, tslider)
 
-    # click to set time
-    # TODO: this blocks the rectagle zoom interaction
-    set_time_interaction = (event::MouseEvent, axis) -> begin
-        if event.type === MouseEventTypes.rightclick
-            pos = mouseposition(axis.scene)[1]
-            set_close_to!(tslider, pos)
-            return true
-        end
-        return false
-    end
-    register_interaction!(set_time_interaction, ax, :set_time)
-
-    fig
+    notify(selected) # shoud trigger everything
+    return fig
 end
 
 function register_keyboard_interaction!(fig, tslider)
