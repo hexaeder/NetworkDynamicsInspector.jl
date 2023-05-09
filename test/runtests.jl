@@ -70,12 +70,8 @@ using OrderedCollections
     @register_estatefilter r"^(.*)_r" => (s"\1_arg", s"\1_mag")
     @register_estatefilter r"^(.*)_i" => (s"\1_arg", s"\1_mag")
 
-    NetworkDynamics.VSTATES
-    NetworkDynamics.ESTATES
-
     sol = include("testpowergrid.jl");
 
-    GLMakie.closeall()
     inspect_solution(sol)
 
     vstatef(sol, p, 1:5, OrderedSet([:u_r, :u_i]))

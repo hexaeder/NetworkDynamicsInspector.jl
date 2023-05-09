@@ -332,10 +332,39 @@ function subplot_window(type, sol, precord; t, tlims, tslider, selected)
         end
     end
 
+    ts = Observable(range(sol.t[begin], sol.t[end], length=1000))
+    on(statelens) do _
+        ts.val = range(sol.t[begin], sol.t[end], length=1000)
+    end
+
+    lastupdate = Ref(time())
+    on(ax.finallimits) do lims
+        lastupdate[] = time()
+    end
+
+    timer = Timer(.5; interval=.5) do _
+        if time() > lastupdate[] + 0.5
+            lims = ax.finallimits[]
+            tmin = max(sol.t[begin], lims.origin[1])
+            tmax = min(sol.t[end], tmin + lims.widths[1])
+            ts.val = range(tmin, tmax, length=1000)
+            lastupdate[] = Inf
+            notify(rel_to_u0)
+        end
+    end
+
+    on(events(fig.scene).window_open) do open
+        if !open
+            @info "Stop Timer"
+            close(timer)
+        end
+    end
+
+
     data = Observable{Array{Union{Missing, Float32}}}()
     onany(statelens, rel_to_u0) do lens, rel
-        # @info "update data"
-        newdat = lens(sol.t)
+        @info "Resample"
+        newdat = lens(ts[])
         if rel
             for idxidx in axes(newdat , 3), symidx in axes(newdat , 2)
                 newdat[:, symidx, idxidx] .-= newdat[begin, symidx, idxidx]
@@ -345,24 +374,24 @@ function subplot_window(type, sol, precord; t, tlims, tslider, selected)
     end
 
     legendref = Ref{Legend}()
-    on(data) do data
-        if isassigned(legendref)
-            delete!(legendref[])
-        end
-        # @info "replot"
+    on(statelens; priority=-1) do _
+        @info "Replot"
+        # if isassigned(legendref)
+        #     delete!(legendref[])
+        # end
         empty!(ax)
         vlines!(ax, t; color=:black)
-        for idxidx in axes(data, 3)
-            for symidx in axes(data, 2)
-                series = @views data[:, symidx, idxidx]
-                ismissing(series[begin]) && continue
-                lines!(ax, sol.t, series;
+        for idxidx in axes(data[], 3)
+            for symidx in axes(data[], 2)
+                series = @lift view($data, :, symidx, idxidx)
+                ismissing(series[][begin]) && continue
+                lines!(ax, ts, series;
                        label=string(statesyms[][symidx])*(rel_to_u0[] ? " (rel)" : "")* " @ "*string(selected[][idxidx]),
                        color=Cycled(idxidx),
                        linestyle=ax.palette.linestyle[][symidx])
             end
         end
-        # if !isempty(data)
+        # if !isempty(data[])
         #    legendref[] = axislegend(ax)
         # end
     end
