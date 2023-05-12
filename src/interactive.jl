@@ -17,6 +17,7 @@ GP_VFAVORITES = [:_ω, :_P, :_Q, :u_arg, :u_mag]
 GP_EFAVORITES = [:_P]
 
 function inspect_solution(sol, network=sol.prob.f.f.graph, precord=PRecord(sol.prob))
+    GLMakie.closeall()
     fig = Figure(resolution = (1200, 1200))
     # #####
     # ##### Selectors for sel_nodes and sel_edges
@@ -189,27 +190,38 @@ function inspect_solution(sol, network=sol.prob.f.f.graph, precord=PRecord(sol.p
     gpgrid[1, 2] = Label(fig, hover_text, tellwidth=false, tellheight=false, justification=:left, halign=:left, valign=:top, font="JuliaMono")
 
     nodehover = NodeHoverHandler() do state, idx, event, axis
-        hover_text[] = if state
+        if state
             p = NetworkDynamics.p_v_idx(precord(t[]), idx)
             state = vstate_vec[][idx]
-            d = OrderedDict(first(nstatesym[]) => state,
-                     "p" => p)
-            "Node $idx\n"*treestyle_string(d)
+            vf = NetworkDynamics.get_vertexf(sol, idx)
+            name = vf.name
+            d = OrderedDict("State "*string(only(nstatesym[])) => state)
+            for (sym, val) in zip(vf.psym, p)
+                d[string(sym)] = val
+            end
+            hover_text[] = "Node $idx: $name\n"*treestyle_string(d)
+            node_size[][idx] += 20
+            notify(node_size)
         else
-            HOVER_DEFAULT
+            hover_text[] = HOVER_DEFAULT
+            notify(sel_nodes)
         end
     end
     register_interaction!(gpax, :nhover, nodehover)
 
     edgehover = EdgeHoverHandler() do state, idx, event, axis
-        hover_text[] = if state
+        if state
             p = NetworkDynamics.p_e_idx(precord(t[]), idx)
             state = estate_vec[][idx]
+            # name = NetworkDynamics.get_edgef(sol, idx).name
             d = OrderedDict(first(nstatesym[]) => state,
                      "p" => p)
-            "Edge $idx\n"*treestyle_string(d)
+            hover_text[] = "Edge $idx\n"*treestyle_string(d)
+            edge_width[][idx] += 4
+            notify(edge_width)
         else
-            HOVER_DEFAULT
+            hover_text[] = HOVER_DEFAULT
+            notify(sel_edges)
         end
     end
     register_interaction!(gpax, :ehover, edgehover)
@@ -260,7 +272,7 @@ function _colorrange_slider(grid, row, label, statelens, rel)
         end
 
         try
-            (min, max) = extrema(skipmissing(values))
+            (min, max) = extrema(Iterators.filter(!isnan, skipmissing(values)))
         catch
             (min, max) = (0.0,0.0)
         end

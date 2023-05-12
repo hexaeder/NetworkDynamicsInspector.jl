@@ -4,7 +4,8 @@ treesyms(x) = treesyms(length(x))
 treesyms(i::Integer) = Iterators.flatten((Iterators.repeated('├', i-1), '└'))
 
 function treestyle_string(d::AbstractDict)
-    reprf = x -> repr(MIME("text/plain"), x)
+    reprf(x) = repr(MIME("text/plain"), x)
+    reprf(x::String) = x
     keylength = mapreduce(k->lastindex(reprf(k)), max, keys(d))
 
     res = mapreduce(*, ziptreesyms(pairs(d))) do (ts, pair)
