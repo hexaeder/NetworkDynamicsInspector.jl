@@ -1,5 +1,4 @@
 using Graphs
-using Printf
 using MetaGraphs
 using GraphMakie
 using Makie
@@ -16,9 +15,10 @@ export inspect_solution, gparguments
 GP_VFAVORITES = [:_ω, :_P, :_Q, :u_arg, :u_mag]
 GP_EFAVORITES = [:_P]
 
-function inspect_solution(sol, network=sol.prob.f.f.graph, precord=PRecord(sol.prob))
-    GLMakie.closeall()
-    fig = Figure(resolution = (1200, 1200))
+function inspect_solution(sol, precord=PRecord(sol.prob))
+    # GLMakie.closeall()
+    network = _get_nd(sol).f.graph
+    fig = Figure(size = (1200, 1200))
     # #####
     # ##### Selectors for sel_nodes and sel_edges
     # #####
@@ -193,7 +193,7 @@ function inspect_solution(sol, network=sol.prob.f.f.graph, precord=PRecord(sol.p
         if state
             p = NetworkDynamics.p_v_idx(precord(t[]), idx)
             state = vstate_vec[][idx]
-            vf = NetworkDynamics.get_vertexf(sol, idx)
+            vf = get_vertexf(sol, idx)
             name = vf.name
             d = OrderedDict("State "*string(only(nstatesym[])) => state)
             for (sym, val) in zip(vf.psym, p)
@@ -213,7 +213,7 @@ function inspect_solution(sol, network=sol.prob.f.f.graph, precord=PRecord(sol.p
         if state
             p = NetworkDynamics.p_e_idx(precord(t[]), idx)
             state = estate_vec[][idx]
-            # name = NetworkDynamics.get_edgef(sol, idx).name
+            # name = get_edgef(sol, idx).name
             d = OrderedDict(first(nstatesym[]) => state,
                      "p" => p)
             hover_text[] = "Edge $idx\n"*treestyle_string(d)
@@ -312,7 +312,7 @@ function _colorrange_slider(grid, row, label, statelens, rel)
 end
 
 function subplot_window(type, sol, precord; t, tlims, tslider, selected)
-    fig = Figure(resolution=(1000, 800))
+    fig = Figure(size=(1000, 800))
     symgrid = fig[1,1] = GridLayout(tellwidth=false, tellheight=true)
 
     sym_selector = if type === :node
@@ -373,7 +373,7 @@ function subplot_window(type, sol, precord; t, tlims, tslider, selected)
     end
 
 
-    data = Observable{Array{Union{Missing, Float32}}}()
+    data = Observable{Array{Union{Missing, Float32}}}(zeros(1,1,1))
     onany(statelens, rel_to_u0) do lens, rel
         @info "Resample"
         newdat = lens(ts[])
@@ -382,7 +382,14 @@ function subplot_window(type, sol, precord; t, tlims, tslider, selected)
                 newdat[:, symidx, idxidx] .-= newdat[begin, symidx, idxidx]
             end
         end
-        data[] = newdat
+        # @info "after" data[] newdat
+        if size(data[]) !== size(newdat)
+            data.val = newdat
+            empty!(data.listeners)
+            # TODO: maybe delete listeners for data here?
+        else
+            data[] = newdat
+        end
     end
 
     legendref = Ref{Legend}()
@@ -395,12 +402,13 @@ function subplot_window(type, sol, precord; t, tlims, tslider, selected)
         vlines!(ax, t; color=:black)
         for idxidx in axes(data[], 3)
             for symidx in axes(data[], 2)
+                # TODO: this is bad because series stays around
                 series = @lift view($data, :, symidx, idxidx)
                 ismissing(series[][begin]) && continue
                 lines!(ax, ts, series;
                        label=string(statesyms[][symidx])*(rel_to_u0[] ? " (rel)" : "")* " @ "*string(selected[][idxidx]),
                        color=Cycled(idxidx),
-                       linestyle=ax.palette.linestyle[][symidx])
+                       linestyle=ax.scene.theme.palette.linestyle[][symidx])
             end
         end
         # if !isempty(data[])

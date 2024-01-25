@@ -1,14 +1,4 @@
-using NetworkDynamics
-using Graphs
-using Random
-using OrdinaryDiffEq
-
-Ngen  = 10
-Nload = 10
-
-g = watts_strogatz(Ngen + Nload, 4, 0.05; seed=1)
-# graphplot(g; layout=Stress())
-
+g = complete_graph(3)
 
 function complex_admittance_edge!(e, v_s, v_d, p, t)
     source_voltage = v_s[1] + v_s[2] * im
@@ -50,29 +40,10 @@ end
 
 pq    = ODEVertex(; f=pq_vertex!, dim=2, mass_matrix=0.0, sym=[:u_r, :u_i])
 swing = ODEVertex(; f=swing_vertex!, dim=3, mass_matrix=1.0, sym=[:u_r, :u_i, :ω])
-edge = StaticEdge(; f=complex_admittance_edge!, dim=2, sym=[:i_r, :i_i], coupling=:antisymmetric)
 
 # vertex_list = swing;#[swing, swing, swing]
-vertex_list = vcat(fill(swing, Ngen), fill(pq,Nload))
+vertex_list = [swing, swing, pq]
+
+edge = StaticEdge(; f=complex_admittance_edge!, dim=2, sym=[:i_r, :i_i], coupling=:antisymmetric)
 
 nd = network_dynamics(vertex_list, edge, g)
-
-Pgen  = 1.0
-Pload = - Ngen*Pgen / Nload
-
-nodep = vcat(fill((Pgen, 1.1), Ngen),
-             fill((Pload, NaN), Nload))
-
-edgep = -5im        # line admittance
-p = (nodep, edgep)
-tspan = (0, 10)
-
-Random.seed!(1)
-u0 = 0.1*randn(length(nd.syms))
-u0[idx_containing(nd, r"^u_r")] .+= 1
-# nd.syms .=> u0
-
-prob = ODEProblem(nd, u0, tspan, p)
-sol = solve(prob, Rodas4())
-
-# Plots.plot(sol)

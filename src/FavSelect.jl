@@ -1,4 +1,5 @@
 using Makie
+using Makie: fast_deepcopy
 
 Makie.@Block TBSelect begin
     @forwarded_layout
