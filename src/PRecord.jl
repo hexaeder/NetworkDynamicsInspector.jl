@@ -6,12 +6,14 @@ Base.eltype(::PRecord{PT}) where {PT} = PT
 
 PRecord(prob::ODEProblem) = PRecord([Float64(prob.tspan[1])], [prob.p])
 PRecord(pr::PRecord) = pr
-PRecord(p) = PRecord([-Inf], [p])
+PRecord(p) = PRecord([-Inf], [deepcopy(p)])
 
-function record!(pr::PRecord, integrator)
-    push!(pr.t, integrator.t)
-    push!(pr.p, deepcopy(integrator.p))
+record!(pr::PRecord, integrator) = record!(pr, integrator.t, integrator.p)
+function record!(pr::PRecord, t, p)
+    push!(pr.t, t)
+    push!(pr.p, deepcopy(p))
 end
+
 
 function (pr::PRecord)(t::Number; direction=:right)
     fun = direction==:right ? tr->tr>t : tr->tr≥t

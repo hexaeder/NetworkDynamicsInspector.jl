@@ -515,3 +515,21 @@ empty_states!() = (empty_vstates!(); empty_estates!())
 empty_vstates!() = empty!(VSTATES)
 empty_estates!() = empty!(ESTATES)
 
+
+export printvstates, printestates
+printvstates(args...) = _reduce_states(string.(listvstates(args...)))
+printestates(args...) = _reduce_states(string.(listestates(args...)))
+
+function _reduce_states(allstates)
+    endings = ["_arg", "_mag", "_i", "_r"]
+    allstates = map(allstates) do state
+        m = match(r"(.*?)(_arg|_mag|_i|_r)$", state)
+        if m !== nothing
+            m[1]*"_*"
+        else
+            state
+        end
+    end
+    unique!(allstates)
+    sort!(allstates)
+end

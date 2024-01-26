@@ -50,6 +50,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: |
           julia --project=docs -e '
+            using Pkg; pkg"add NetworkDynamics#hw/solinspect"
             using Documenter: DocMeta, doctest
             using NetworkDynamicsInspector
             DocMeta.setdocmeta!(NetworkDynamicsInspector, :DocTestSetup, :(using NetworkDynamicsInspector); recursive=true)

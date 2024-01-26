@@ -214,7 +214,7 @@ function inspect_solution(sol, precord=PRecord(sol.prob))
             p = NetworkDynamics.p_e_idx(precord(t[]), idx)
             state = estate_vec[][idx]
             # name = get_edgef(sol, idx).name
-            d = OrderedDict(first(nstatesym[]) => state,
+            d = OrderedDict(first(estatesym[]) => state,
                      "p" => p)
             hover_text[] = "Edge $idx\n"*treestyle_string(d)
             edge_width[][idx] += 4

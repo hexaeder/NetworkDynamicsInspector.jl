@@ -46,4 +46,5 @@ vertex_list = [swing, swing, pq]
 
 edge = StaticEdge(; f=complex_admittance_edge!, dim=2, sym=[:i_r, :i_i], coupling=:antisymmetric)
 
+
 nd = network_dynamics(vertex_list, edge, g)

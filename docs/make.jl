@@ -1,7 +1,23 @@
 using NetworkDynamicsInspector
 using Documenter
+using Literate
+using OrdinaryDiffEq
+using DiffEqCallbacks
+using CairoMakie
+using Graphs
+using GraphMakie
 
 DocMeta.setdocmeta!(NetworkDynamicsInspector, :DocTestSetup, :(using NetworkDynamicsInspector); recursive=true)
+
+# generate examples
+example_dir = joinpath(@__DIR__, "..", "examples")
+outdir = joinpath(@__DIR__, "src", "generated")
+isdir(outdir) && rm(outdir, recursive=true)
+mkpath(outdir)
+
+for example in filter(contains(r".jl$"), readdir(example_dir, join=true))
+    Literate.markdown(example, outdir)
+end
 
 makedocs(;
     modules=[NetworkDynamicsInspector],
@@ -16,6 +32,7 @@ makedocs(;
     ),
     pages=[
         "Home" => "index.md",
+        "Examples" => ["Feature Walkthrough" => "generated/walkthrough.md"]
     ],
 )
 

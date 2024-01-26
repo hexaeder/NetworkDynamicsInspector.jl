@@ -55,3 +55,16 @@ end
     using NetworkDynamicsInspector: treestyle_string
     treestyle_string(d)
 end
+
+@testset "PRecord" begin
+    a = [1,2,3]
+    b = [3,4,5]
+    p = (a, b)
+
+    pr = PRecord(p)
+    p[1][1] = 4
+    @test pr(0) == ([1,2,3], b)
+    record!(pr, 1, p)
+    @test pr(1.1) == p
+    @test pr(0.9) == ([1,2,3], b)
+end

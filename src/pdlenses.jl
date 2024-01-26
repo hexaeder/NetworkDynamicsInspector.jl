@@ -37,11 +37,6 @@ function register_pd_lenses!()
     @register_vstatelens :_P => real(:_S)
     @register_vstatelens :_Q => imag(:_S)
 
-    @register_vstatelens :_Smeas => (:u_meas_r + :u_meas_i*im)*(:i_meas_r - :i_meas_i*im)
-    @register_vstatelens :_Pmeas => real(:_Smeas)
-    @register_vstatelens :_Qmeas => imag(:_Smeas)
-
-
     # a, b, c component
     register_vstatelens!(r"^.*_[abc]$") do sol, idx, state
         m = match(r"^(.*)_(.)$", string(state))
@@ -67,10 +62,6 @@ function register_pd_lenses!()
     @register_estatelens r"^(.*)_mag$" => sqrt(s"\1_r"^2 + s"\1_i"^2)
     @register_estatelens r"^(.*)_arg$" => atan(s"\1_i", s"\1_r")
 
-    # register transformation by pll
-    @register_just_vstatelens r"^(.*)_d$" => cos(-:δ_pll)*s"\1_r" - sin(-:δ_pll)*s"\1_i"
-    @register_just_vstatelens r"^(.*)_q$" => sin(-:δ_pll)*s"\1_r" + cos(-:δ_pll)*s"\1_i"
-
     ## now for the edges
     register_estatelens!(r"^(srcv|dstv)_(.*)$") do sol, idx, state
         m = match(r"^(srcv|dstv)_(.*)$", string(state))
@@ -85,13 +76,13 @@ function register_pd_lenses!()
         end
     end
 
-    @register_estatelens r"^_(src|dst)_Slcl" => (s"\1v_u_r" + s"\1v_u_i"*im)*(s"\1_i_r" - s"\1_i_i"*im)
+    @register_estatelens r"^_(src|dst)_S" => (s"\1v_u_r" + s"\1v_u_i"*im)*(s"\1_i_r" - s"\1_i_i"*im)
     @register_estatelens r"^_(src|dst)_P" => real(s"_\1_S")
     @register_estatelens r"^_(src|dst)_Q" => imag(s"_\1_S")
 
-    @register_estatelens :_P => max(:_src_P, :_dst_P)
+    @register_estatelens :_P => max(abs(:_src_P), abs(:_dst_P))
     # @register_estate :_P :_src_P :_dst_P
-    @register_estatelens :_Q => max(:_src_Q, :_dst_Q)
+    @register_estatelens :_Q => max(abs(:_src_Q), abs(:_dst_Q))
     # @register_estate :_Q :_src_Q :_dst_Q
 
     # dont show the _r and _i if ther are _arg and _mag
@@ -103,9 +94,11 @@ end
 
 function _total_current(edges)
     # ND convention: all flows entering a node are positive
-    current = 0.0im
+    er = 0
+    ei = 0
     @inbounds for e in edges
-        current += e[1] + e[2]*im
+        er += e[1]
+        ei += e[2]
     end
-    current
+    (er, ei)
 end
