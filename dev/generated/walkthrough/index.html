@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Feature Walkthrough · NetworkDynamicsInspector.jl</title><meta name="title" content="Feature Walkthrough · NetworkDynamicsInspector.jl"/><meta property="og:title" content="Feature Walkthrough · NetworkDynamicsInspector.jl"/><meta property="twitter:title" content="Feature Walkthrough · NetworkDynamicsInspector.jl"/><meta name="description" content="Documentation for NetworkDynamicsInspector.jl."/><meta property="og:description" content="Documentation for NetworkDynamicsInspector.jl."/><meta property="twitter:description" content="Documentation for NetworkDynamicsInspector.jl."/><meta property="og:url" content="https://hexaeder.github.io/NetworkDynamicsInspector.jl/generated/walkthrough/"/><meta property="twitter:url" content="https://hexaeder.github.io/NetworkDynamicsInspector.jl/generated/walkthrough/"/><link rel="canonical" href="https://hexaeder.github.io/NetworkDynamicsInspector.jl/generated/walkthrough/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">NetworkDynamicsInspector.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><span class="tocitem">Examples</span><ul><li class="is-active"><a class="tocitem" href>Feature Walkthrough</a><ul class="internal"><li><a class="tocitem" href="#Definition-of-Test-Powergrid"><span>Definition of Test Powergrid</span></a></li><li><a class="tocitem" href="#Statelensens"><span>Statelensens</span></a></li><li><a class="tocitem" href="#Interactive"><span>Interactive</span></a></li></ul></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Feature Walkthrough</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Feature Walkthrough</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/hexaeder/NetworkDynamicsInspector.jl/blob/main/examples/walkthrough.jl#" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Feature-walkthrough"><a class="docs-heading-anchor" href="#Feature-walkthrough">Feature walkthrough</a><a id="Feature-walkthrough-1"></a><a class="docs-heading-anchor-permalink" href="#Feature-walkthrough" title="Permalink"></a></h1><h2 id="Definition-of-Test-Powergrid"><a class="docs-heading-anchor" href="#Definition-of-Test-Powergrid">Definition of Test Powergrid</a><a id="Definition-of-Test-Powergrid-1"></a><a class="docs-heading-anchor-permalink" href="#Definition-of-Test-Powergrid" title="Permalink"></a></h2><p>In this example, we&#39;ll go through the main features of the NetworkDynamicsInspector package.</p><p>This package is all about inspecting the dynamic states of a network. To do so, we start by defining dynamic problem. The problem is stated in normal <code>PowerDynamics.jl</code> convention. This means, the edge states visible to the nodes are the complex currents <code>(i_r, i_i)</code> flowing into the node, the node states visible to the edges are the complex currents <code>(u_r, u_i)</code> established at the node.</p><pre><code class="language-julia hljs">using NetworkDynamics
+using NetworkDynamicsInspector
+using Graphs
+using CairoMakie
+using GraphMakie
+using OrdinaryDiffEq
+using DiffEqCallbacks
+
+g = SimpleGraph(5)
+add_edge!(g, 1, 2); add_edge!(g, 1, 4); add_edge!(g, 2, 3); add_edge!(g, 2, 4);
+add_edge!(g, 2, 5); add_edge!(g, 3, 5); add_edge!(g, 4, 5);
+
+ntypes = [:gen, :load, :gen, :load, :load]
+
+node_color = map(t-&gt;t==:gen ? Makie.wong_colors()[5] : Makie.wong_colors()[2], ntypes)
+fig, ax, p = graphplot(g; ilabels=repr.(1:5), node_color)
+hidedecorations!(ax); hidespines!(ax)</code></pre><img src="a3005b38.png" alt="Example block output"/><p>Here, the blue nodes represent generators while the orange nodes represent loads.</p><p>Next we can define our node models. The swing node is typical represenation of the swing quation and has two parameters, mechanical turbine power <code>P</code> and damping <code>D</code>. It has three states, the internal angle <code>δ</code> and both components of the complex voltage.</p><pre><code class="language-julia hljs">function swing_vertex!(dv, v, edges, (P, M, D), t)
+    u_r, u_i, ω = v
+    i = total_current(edges)
+    u = u_r + u_i * im
+    δ = angle(u)
+
+    Pel = real(u*conj(i))
+    dω = M * (P + Pel - D*ω)
+
+    du_r = -sin(δ)*ω
+    du_i =  cos(δ)*ω
+
+    dv .= du_r, du_i, dω
+    nothing
+end
+swing = ODEVertex(; f=swing_vertex!, dim=3, mass_matrix=1.0, sym=[:u_r, :u_i, :ω], psym=[:P, :M, :D])</code></pre><p>The load vertices is implemented as a constraint. It just forces <code>u_r</code> and <code>u_i</code> such that <code>P=u⋅i*</code>:</p><pre><code class="language-julia hljs">function pq_vertex!(dv, v, edges, (P,), t)
+    current = total_current(edges)
+    voltage = v[1] + v[2] * im
+    residual = P + voltage * conj(current)
+    dv[1] = real(residual)
+    dv[2] = imag(residual)
+    nothing
+end
+load = ODEVertex(; f=pq_vertex!, dim=2, mass_matrix=0.0, sym=[:u_r, :u_i], psym=[:P])</code></pre><p>Both vertices need a helper function to find the total current inflow at the node:</p><pre><code class="language-julia hljs">function total_current(edges)
+    # ND convention: all flows entering a node are positive
+    current = 0.0im
+    @inbounds for e in edges
+        current += e[1] + e[2]*im
+    end
+    current
+end</code></pre><p>For the edge model, we take the RMS represenation (static edge) of an edge with complex admittance (RL line), where the admittance <code>Y</code> is the onlye parameter.</p><pre><code class="language-julia hljs">function complex_admittance_edge!(e, v_s, v_d, (Y,), t)
+    src_voltage = v_s[1] + v_s[2] * im
+    dst_voltage = v_d[1] + v_d[2] * im
+    # If current is flowing away from the source, it is negative at the source.
+    complex_current = Y * (dst_voltage - src_voltage)
+    e[1] = real(complex_current)
+    e[2] = imag(complex_current)
+    nothing
+end
+edge = StaticEdge(; f=complex_admittance_edge!, dim=2, sym=[:i_r, :i_i], psym=[:Y], coupling=:antisymmetric)</code></pre><p>Now we can finally create the nd object, the parameters and simulate:</p><pre><code class="language-julia hljs">vertex_list = map(t-&gt;t==:gen ? swing : load, ntypes)
+nd = network_dynamics(vertex_list, edge, g)
+
+p_vert = [( 2.0, 10., 1.0), # inj and damping gen 1
+          (-0.5, NaN, NaN),  # draw load 2
+          ( 1.0, 10., 1.0), # inj and damping gen 3
+          (-0.5, NaN, NaN),  # draw load 2
+          (-2.0, NaN, NaN)]  # draw load 2
+# fillig up with `NaN` here helps us to achive concret parameter array eltype which is important for performance
+@assert isconcretetype(eltype(p_vert))
+
+# the edges are homogenious
+p_edge = [5im for i in edges(g)]
+
+# network apraemters are the combination of vertex and edge parameters
+
+p = (p_vert, p_edge)
+pr = PRecord(p)</code></pre><p>Not the usage of the <code>PRecord</code> struct: in order to reconstruct states later, it is sometimes necessary to know the parameters at that point in time. <code>PRecord</code> exists to &quot;preserve&quot; the parameters. Use <code>record!(pr, integrator)</code> within your callbacks where you change the parameters. Later on <code>pr(t)</code> can be used to restore the parameters for every timepoint of the solution object.</p><p>For the initial condition, we first initialize everything to 0 and than rais all the real parts of the voltage to 0</p><pre><code class="language-julia hljs">u0 = zeros(length(nd.syms))
+u0[idx_containing(nd, r&quot;^u_r&quot;)] .= 1
+
+cbf = function(int)
+    int.p[2][4] = 0     # set conductivity of edge 1 to 0, basicially cutting the line
+    record!(pr, int)    # store the changed parameter in the `PRecord`
+    auto_dt_reset!(int) # reset the stepssize of the integrator
+end
+callback = PresetTimeCallback(5, cbf)
+
+prob = ODEProblem(nd, u0, (0, 10), deepcopy(p); callback)
+sol = solve(prob, Rodas5P())
+@assert SciMLBase.successful_retcode(sol) &quot;Solver error: $(sol.retcode)&quot;</code></pre><h2 id="Statelensens"><a class="docs-heading-anchor" href="#Statelensens">Statelensens</a><a id="Statelensens-1"></a><a class="docs-heading-anchor-permalink" href="#Statelensens" title="Permalink"></a></h2><p>The main purpose of this package is to inspect variables. The entry point for that are the functions <code>vstatef</code> and <code>estatef</code>. Those function create a so called &quot;lens&quot; which helps us to retrieve a certain state</p><pre><code class="language-julia hljs">lens = vstatef(sol, pr, 1, :u_r) # creates lens to access state &quot;u_r&quot; of vertice 1
+lens(1.1) # evaluates lens at time 1.1 to get state at that point.</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.9966821538249486</code></pre><p>It is possible to create lenses wich access multiple variables or multiple indices at once:</p><pre><code class="language-julia hljs">estatef(sol, pr, 1, :src_i_r)(1.1)               # retrives state `:src_i_r` for edge 1 at time 1.1
+estatef(sol, pr, 1, [:src_i_r, :src_i_i])(1.1)   # retrives states `:src_i_r` and `:src_i_i` for edge 1 at time 1.1
+estatef(sol, pr, 1:2, [:src_i_r, :src_i_i])(1.1) # does the same for edges 1 and 2
+estatef(sol, pr, 2, [:src_i_r, :src_i_i])(sol.t) # gives both states for entiere time series at once</code></pre><p>Those commands can be used to plot stuff relatively quickly, especially edge states which are much harde to aquire</p><pre><code class="language-julia hljs">ts = range(sol.t[begin], sol.t[end], length=1000) # more intermediate points to make graph smoother
+fig, ax, p = lines(ts, vstatef(sol,pr,1,:ω)(ts))
+lines!(ts, vstatef(sol,pr,3,:ω)(ts))</code></pre><img src="3ba09777.png" alt="Example block output"/><p>On its own, that nice but it isn&#39;t really powerful. The interesting thing is now, that you can create your own &quot;recipes&quot; for intermediade states which are not really accessible. For example, lets consider you&#39;re interested in the voltage angle rather than the <code>_r</code> and <code>_i</code> components:</p><pre><code class="language-julia hljs">@register_vstatelens :u_arg =&gt; atan(:u_i, :u_r)
+lines(ts, vstatef(sol,pr,1,:u_arg)(ts))</code></pre><img src="2e7443e8.png" alt="Example block output"/><p>you can delete the defined lens again</p><pre><code class="language-julia hljs">empty_lenses!()</code></pre><p><code>lines(ts, vstatef(sol,pr,1,:u_arg)(ts))</code> would error now.</p><p>It is also possible to define more complex rules based on patternmatching</p><pre><code class="language-julia hljs">@register_vstatelens r&quot;^(.*)_mag$&quot; =&gt; sqrt(s&quot;\1_r&quot;^2 + s&quot;\1_i&quot;^2)
+@register_vstatelens r&quot;^(.*)_arg$&quot; =&gt; atan(s&quot;\1_i&quot;, s&quot;\1_r&quot;)</code></pre><p>This registers a new <code>NAME_mag</code> and <code>NAME_arg</code> state, whenever there exists <code>NAME_r</code> and <code>NAME_i</code></p><p>For more advance usage, you can define even more complex rules. Don&#39;t worry you don&#39;t need to fully understand the following code. What it does, it registers new virutal states <code>_i_r</code> and <code>_i_i</code> for each node, which are calculated based on the total current sum of the incomming edges.</p><p>Per convention, it uses the leading underscore to mark a &quot;virtual&quot; or &quot;derived&quot; state.</p><pre><code class="language-julia hljs">register_vstatelens!(r&quot;^_i_([ri])$&quot;) do sol, idx, state
+    m = match(r&quot;_i_([ri])$&quot;, string(state))
+    part = m[1] == &quot;i&quot; ? imag : real
+
+    let part=part
+        (gd, p, t) -&gt; begin
+            i = total_current(get_dst_edges(gd, idx))
+            part(i)
+        end
+    end
+end
+@register_vstate :_i_r :_i_i</code></pre><p>With that new definition in place, we can define even more virtual states:</p><pre><code class="language-julia hljs">@register_vstatelens :_S =&gt; (:u_r + :u_i*im)*(:_i_r - :_i_i*im)
+@register_vstatelens :_P =&gt; real(:_S)
+@register_vstatelens :_Q =&gt; imag(:_S)</code></pre><p>Now we have easy acces to plot the measured power of our devices:</p><pre><code class="language-julia hljs">fig, ax, p = lines(ts, vstatef(sol,pr,1,:_P); label=&quot;Node 1&quot;)
+lines!(ts, vstatef(sol,pr,2,:_P); label=&quot;Node 2&quot;)
+lines!(ts, vstatef(sol,pr,3,:_P); label=&quot;Node 3&quot;)
+lines!(ts, vstatef(sol,pr,4,:_P); label=&quot;Node 4&quot;)
+lines!(ts, vstatef(sol,pr,5,:_P); label=&quot;Node 5&quot;)
+axislegend()</code></pre><img src="24f243b3.png" alt="Example block output"/><p>The good thing is, you don&#39;t need to define all those on you own. Just reuse existing lenses. Call</p><pre><code class="language-julia hljs">register_pd_lenses!()</code></pre><p>To get a predfined lest of lenses which match the powerdynamics conventions. Most notably you get an additional vertex state <code>:_ω</code> for the estimated, instantanious frequency (based on the derivative of the voltage).</p><p>For the edges there is <code>:_src_P</code> and <code>:dst_P</code> to get the power at both ends. <code>:_P</code> gives you the maximum of those. Similarily there are <code>Q</code> and <code>S</code> for edges too.</p><p>We can use those to easily inspect the powerflow on the different edges in the network:</p><pre><code class="language-julia hljs">fig, ax, p = lines(ts, estatef(sol,pr,1,:_P)(ts); label=&quot;Edge 1&quot;)
+lines!(ts, estatef(sol,pr,2,:_P)(ts); label=&quot;Edge 2&quot;)
+lines!(ts, estatef(sol,pr,3,:_P)(ts); label=&quot;Edge 3&quot;)
+lines!(ts, estatef(sol,pr,4,:_P)(ts); label=&quot;Edge 4&quot;)
+lines!(ts, estatef(sol,pr,5,:_P)(ts); label=&quot;Edge 5&quot;)
+lines!(ts, estatef(sol,pr,6,:_P)(ts); label=&quot;Edge 6&quot;)
+lines!(ts, estatef(sol,pr,7,:_P)(ts); label=&quot;Edge 7&quot;)</code></pre><img src="96090bc1.png" alt="Example block output"/><p>A task which would be super annoying using the standard ND.jl methods.</p><p>For inspection, there are a few more interesting functions:</p><pre><code class="language-julia hljs">listvstates(sol, 1)   # shows you all states available for vertex 1
+listvstates(sol, 1:2) # shows you all states available for vertex 1 AND 2 (intersection of both)
+listvstates(sol)      # shows you all states available for ALL vertices in the network
+listestates(sol, 1)   # same, but for edge states</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">8-element Vector{Symbol}:
+ :dst_i_arg
+ :dst_i_mag
+ :src_i_arg
+ :src_i_mag
+ :dst_i_r
+ :dst_i_i
+ :src_i_r
+ :src_i_i</code></pre><p>if you want it more compact, there is</p><pre><code class="language-julia hljs">printvstates(sol, 1)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">7-element Vector{String}:
+ &quot;_P&quot;
+ &quot;_Q&quot;
+ &quot;_S&quot;
+ &quot;_i_*&quot;
+ &quot;_ω&quot;
+ &quot;u_*&quot;
+ &quot;ω&quot;</code></pre><p>which is similar but supresses all the <code>_r</code>, <code>_i</code>, <code>_arg</code>, <code>_mag</code> endings.</p><h2 id="Interactive"><a class="docs-heading-anchor" href="#Interactive">Interactive</a><a id="Interactive-1"></a><a class="docs-heading-anchor-permalink" href="#Interactive" title="Permalink"></a></h2><p>To make use of the interactive features please download script and call</p><p><code>inspect_solution(sol,pr)</code></p><p><img src="../../screenshot.png" alt="screenshot of interactive tool"/></p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../">« Home</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="auto">Automatic (OS)</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.2.1 on <span class="colophon-date" title="Monday 29 January 2024 11:39">Monday 29 January 2024</span>. Using Julia version 1.10.0.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
